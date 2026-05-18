@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Java Middle — теория и практика</title>
+  <meta name="description" content="91 теоретических вопросов и 32 практические задачи для собеседования Java Middle." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header class="header">
+    <a href="#home" class="brand" id="brand-link">
+      <span class="brand-icon">J</span>
+      <div class="brand-text">
+        <h1>Java Middle</h1>
+        <p class="brand-sub">Теория · Практика · План 14 дней</p>
+      </div>
+    </a>
+    <div class="search-wrap">
+      <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input type="search" id="search" placeholder="Поиск по теории и практике…" autocomplete="off" />
+      <kbd class="search-hint">/</kbd>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <nav class="section-tabs" id="section-tabs" aria-label="Разделы">
+        <button type="button" class="section-tab active" data-section="theory">Теория</button>
+        <button type="button" class="section-tab" data-section="practice">Практика</button>
+        <button type="button" class="section-tab" data-section="plan">План</button>
+      </nav>
+      <nav class="block-nav" id="sidebar-nav" aria-label="Навигация"></nav>
+    </aside>
+
+    <main class="main" id="main">
+      <section class="hero" id="hero"></section>
+      <div id="list-view" class="list-view" hidden></div>
+      <article id="detail-view" class="detail-view" hidden></article>
+    </main>
+  </div>
+
+  <footer class="footer">
+    <p>JavaJub · <a href="https://leetcode.com" target="_blank" rel="noopener">LeetCode</a></p>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
