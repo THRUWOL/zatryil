@@ -5,11 +5,19 @@
   const $$ = (sel) => document.querySelectorAll(sel);
 
   const searchInput = $("#search");
+  const searchClearBtn = $("#search-clear");
   const sectionTabs = $("#section-tabs");
   const sidebarNav = $("#sidebar-nav");
   const hero = $("#hero");
   const listView = $("#list-view");
   const detailView = $("#detail-view");
+  const toastEl = $("#toast");
+  const shortcutsDialog = $("#shortcuts-dialog");
+
+  const LS_LEARNED = "jm_learned";
+  const LS_FAVORITE = "jm_favorite";
+  const LS_RECENT = "jm_recent";
+  const RECENT_MAX = 10;
 
   let theory = { questions: [], blocks: [] };
   let practice = { categories: [], tasks: [], methodology: {}, plan14: [] };
@@ -18,6 +26,9 @@
   let fusePractice = null;
   let filterBlock = null;
   let filterCategory = null;
+  let navContext = { kind: null, prevId: null, nextId: null };
+  let mockHidden = false;
+  let currentDetailOpts = {};
 
   marked.setOptions({ breaks: true, gfm: true });
 
@@ -34,6 +45,161 @@
   function snippet(t, n = 140) {
     const p = (t || "").replace(/\*\*/g, "").replace(/`/g, "");
     return p.length > n ? p.slice(0, n) + "…" : p;
+  }
+
+  function toast(msg) {
+    if (!toastEl) return;
+    toastEl.textContent = msg;
+    toastEl.hidden = false;
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => {
+      toastEl.hidden = true;
+    }, 2200);
+  }
+
+  function loadJson(key, fallback) {
+    try {
+      return JSON.parse(localStorage.getItem(key)) ?? fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  function saveJson(key, val) {
+    localStorage.setItem(key, JSON.stringify(val));
+  }
+
+  function favKey(kind, id) {
+    return `${kind}:${id}`;
+  }
+
+  function isLearned(id) {
+    return loadJson(LS_LEARNED, []).includes(id);
+  }
+
+  function isFavorite(kind, id) {
+    return loadJson(LS_FAVORITE, []).includes(favKey(kind, id));
+  }
+
+  function toggleLearned(id) {
+    const set = loadJson(LS_LEARNED, []);
+    const i = set.indexOf(id);
+    if (i >= 0) set.splice(i, 1);
+    else set.push(id);
+    saveJson(LS_LEARNED, set);
+    return set.length;
+  }
+
+  function toggleFavorite(kind, id) {
+    const key = favKey(kind, id);
+    const set = loadJson(LS_FAVORITE, []);
+    const i = set.indexOf(key);
+    if (i >= 0) set.splice(i, 1);
+    else set.push(key);
+    saveJson(LS_FAVORITE, set);
+    return set.includes(key);
+  }
+
+  function learnedCount() {
+    return loadJson(LS_LEARNED, []).length;
+  }
+
+  function pushRecent(kind, id, title) {
+    let list = loadJson(LS_RECENT, []);
+    list = list.filter((x) => !(x.kind === kind && x.id === id));
+    list.unshift({ kind, id, title });
+    saveJson(LS_RECENT, list.slice(0, RECENT_MAX));
+  }
+
+  function getRecent() {
+    return loadJson(LS_RECENT, []);
+  }
+
+  function escapeRegex(s) {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  function highlightHtml(text, query) {
+    if (!query || !text) return esc(text);
+    const terms = query.trim().split(/\s+/).filter((t) => t.length > 1);
+    if (!terms.length) return esc(text);
+    let html = esc(text);
+    terms.forEach((term) => {
+      const re = new RegExp(`(${escapeRegex(term)})`, "gi");
+      html = html.replace(re, "<mark class=\"hl\">$1</mark>");
+    });
+    return html;
+  }
+
+  function itemUrl(kind, id) {
+    return `${location.origin}${location.pathname}#${kind === "theory" ? "q" : "p"}-${id}`;
+  }
+
+  async function copyText(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast("Скопировано");
+    } catch {
+      toast("Не удалось скопировать");
+    }
+  }
+
+  function updateSearchClear() {
+    const active = !!searchInput.value.trim();
+    if (searchClearBtn) searchClearBtn.hidden = !active;
+  }
+
+  function clearSearch() {
+    searchInput.value = "";
+    updateSearchClear();
+    if (section === "theory") {
+      filterBlock ? onSidebarClick(filterBlock) : onSidebarClick("all");
+    } else if (section === "practice") {
+      filterCategory ? onSidebarClick(filterCategory) : onSidebarClick("all");
+    } else {
+      goHome();
+    }
+    location.hash = section === "theory" ? "home" : section;
+  }
+
+  function renderRecentBlock() {
+    const recent = getRecent();
+    if (!recent.length) return "";
+    return (
+      `<div class="sidebar-recent">
+        <p class="nav-label">Недавние</p>
+        ${recent
+          .map(
+            (r) =>
+              `<button type="button" class="recent-item" data-recent-kind="${r.kind}" data-recent-id="${r.id}">#${r.id} ${esc(snippet(r.title, 42))}</button>`
+          )
+          .join("")}
+      </div>`
+    );
+  }
+
+  function bindRecentClicks() {
+    sidebarNav.querySelectorAll(".recent-item").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const kind = btn.dataset.recentKind;
+        const id = parseInt(btn.dataset.recentId, 10);
+        if (kind === "theory") {
+          setSection("theory");
+          showTheoryDetail(id);
+        } else {
+          setSection("practice");
+          showPracticeDetail(id);
+        }
+      });
+    });
+  }
+
+  function showRandomMock() {
+    const qs = theory.questions;
+    if (!qs.length) return;
+    const q = qs[Math.floor(Math.random() * qs.length)];
+    setSection("theory");
+    showTheoryDetail(q.id, { mock: true });
   }
 
   async function load() {
@@ -69,9 +235,16 @@
     });
 
     bindSectionTabs();
+    bindGlobalUi();
     renderSidebar();
     renderHero();
     handleHash();
+  }
+
+  function bindGlobalUi() {
+    searchClearBtn?.addEventListener("click", clearSearch);
+    $("#shortcuts-btn")?.addEventListener("click", () => shortcutsDialog?.showModal());
+    searchInput.addEventListener("input", updateSearchClear);
   }
 
   function bindSectionTabs() {
@@ -90,6 +263,7 @@
     filterBlock = null;
     filterCategory = null;
     searchInput.value = "";
+    updateSearchClear();
     sectionTabs.querySelectorAll(".section-tab").forEach((b) => {
       b.classList.toggle("active", b.dataset.section === s);
     });
@@ -104,12 +278,17 @@
   function renderSidebar() {
     if (section === "theory") {
       const blocks = theory.blocks.filter((b) => b.id !== 12);
+      const learned = learnedCount();
+      const total = theory.questions.length;
       sidebarNav.innerHTML =
-        `<p class="nav-label">Блоки теории · ${theory.questions.length} вопр.</p>` +
-        navBtn("all", "Все вопросы", true) +
+        `<p class="nav-progress">Выучено: ${learned}/${total}</p>` +
+        `<button type="button" class="nav-item nav-item-random" data-nav="random">🎲 Случайный вопрос</button>` +
+        renderRecentBlock() +
+        `<p class="nav-label">Блоки теории · ${total} вопр.</p>` +
+        navBtn("all", "Все вопросы", !filterBlock) +
         blocks
           .map((b) =>
-            navBtn(b.id, `${b.id}. ${esc(b.shortName || b.name)}`)
+            navBtn(b.id, `${b.id}. ${esc(b.shortName || b.name)}`, filterBlock === b.id)
           )
           .join("");
     } else if (section === "practice") {
@@ -127,8 +306,12 @@
         navBtn("patterns", "Паттерны алгоритмов", false);
     }
     sidebarNav.querySelectorAll(".nav-item").forEach((btn) => {
-      btn.addEventListener("click", () => onSidebarClick(btn.dataset.nav));
+      btn.addEventListener("click", () => {
+        if (btn.dataset.nav === "random") showRandomMock();
+        else onSidebarClick(btn.dataset.nav);
+      });
     });
+    bindRecentClicks();
   }
 
   function navBtn(id, label, active, badge = "") {
@@ -150,6 +333,7 @@
 
   function onSidebarClick(nav) {
     searchInput.value = "";
+    updateSearchClear();
     if (section === "theory") {
       filterBlock = nav === "all" ? null : parseInt(nav, 10);
       setNavActive(nav);
@@ -184,7 +368,8 @@
         <h2>91 вопрос с ответами</h2>
         <p>Java Core, Spring, SQL, Kafka — 91 вопрос по темам Middle. Развёрнутые ответы и ссылки на официальную документацию и спецификации.</p>
         <div class="hero-actions">
-          <button type="button" class="btn-primary" data-action="all-theory">Все вопросы</button>
+          <button type="button" class="btn-primary" data-action="random-mock">🎲 Случайный вопрос</button>
+          <button type="button" class="btn-secondary" data-action="all-theory">Все вопросы</button>
         </div>`;
     } else if (section === "practice") {
       hero.innerHTML = `
@@ -207,6 +392,7 @@
     hero.querySelectorAll("[data-action]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const a = btn.dataset.action;
+        if (a === "random-mock") showRandomMock();
         if (a === "all-theory") onSidebarClick("all");
         if (a === "method") {
           setSection("practice");
@@ -279,27 +465,84 @@
     );
   }
 
-  function cardTheory(q) {
-    return `<a class="card" href="#q-${q.id}" data-kind="theory" data-id="${q.id}">
-      <div class="card-meta"><span class="tag tag-theory">#${q.id}</span><span class="tag">${esc(q.blockShortName || `Блок ${q.block}`)}</span></div>
-      <h3>${esc(q.title)}</h3>
-      <p>${esc(snippet(q.answer))}</p>
+  function cardTheory(q, opts = {}) {
+    const hl = opts.highlight;
+    const learned = isLearned(q.id);
+    const fav = isFavorite("theory", q.id);
+    const cardCls = ["card", learned ? "card-learned" : "", fav ? "card-fav" : ""]
+      .filter(Boolean)
+      .join(" ");
+    return `<a class="${cardCls}" href="#q-${q.id}" data-kind="theory" data-id="${q.id}">
+      <div class="card-meta">
+        <span class="tag tag-theory">#${q.id}</span>
+        <span class="tag">${esc(q.blockShortName || `Блок ${q.block}`)}</span>
+        ${learned ? '<span class="tag tag-learned">✓</span>' : ""}
+        ${fav ? '<span class="tag tag-fav">★</span>' : ""}
+      </div>
+      <h3>${hl ? highlightHtml(q.title, hl) : esc(q.title)}</h3>
+      <p>${hl ? highlightHtml(snippet(q.answer), hl) : esc(snippet(q.answer))}</p>
     </a>`;
   }
 
-  function cardPractice(t) {
+  function cardPractice(t, opts = {}) {
+    const hl = opts.highlight;
     const lc = t.leetcodeUrl
       ? `<span class="tag tag-lc">LeetCode</span>`
       : `<span class="tag tag-interview">Собес</span>`;
     const pattern = t.pattern
       ? `<span class="tag tag-pattern">${esc(t.pattern)}</span>`
       : "";
-    return `<a class="card card-practice" href="#p-${t.num}" data-kind="practice" data-id="${t.num}">
-      <div class="card-meta"><span class="tag tag-practice">${esc(t.categoryTitle)}</span>${pattern}${lc}</div>
-      <h3>${esc(t.title)}</h3>
-      <p class="card-desc">${esc(snippet(t.description || t.approach || t.title, 160))}</p>
+    const fav = isFavorite("practice", t.num);
+    return `<a class="card card-practice${fav ? " card-fav" : ""}" href="#p-${t.num}" data-kind="practice" data-id="${t.num}">
+      <div class="card-meta"><span class="tag tag-practice">${esc(t.categoryTitle)}</span>${pattern}${lc}${fav ? '<span class="tag tag-fav">★</span>' : ""}</div>
+      <h3>${hl ? highlightHtml(t.title, hl) : esc(t.title)}</h3>
+      <p class="card-desc">${hl ? highlightHtml(snippet(t.description || t.approach || t.title, 160), hl) : esc(snippet(t.description || t.approach || t.title, 160))}</p>
       ${t.complexity ? `<p class="card-complexity">Сложность: <code>${esc(t.complexity)}</code></p>` : ""}
     </a>`;
+  }
+
+  function detailToolbar(kind, id, opts = {}) {
+    const learned = kind === "theory" && isLearned(id);
+    const fav = isFavorite(kind, id);
+    const mock = opts.mock && kind === "theory";
+    return `<div class="detail-toolbar" data-kind="${kind}" data-id="${id}">
+      ${kind === "theory" ? `<button type="button" class="tool-btn${learned ? " active" : ""}" data-tool="learned" title="Выучено">✓ Выучено</button>` : ""}
+      <button type="button" class="tool-btn${fav ? " active-fav" : ""}" data-tool="favorite" title="Избранное">★ Избранное</button>
+      <button type="button" class="tool-btn" data-tool="copy-link">🔗 Ссылка</button>
+      <button type="button" class="tool-btn" data-tool="copy-answer">📋 Копировать</button>
+      ${mock ? `<button type="button" class="tool-btn tool-btn-mock" data-tool="reveal">Показать ответ</button>` : ""}
+    </div>`;
+  }
+
+  function bindDetailToolbar(kind, id, qOrTask, opts = {}) {
+    const bar = detailView.querySelector(".detail-toolbar");
+    if (!bar) return;
+    bar.querySelectorAll("[data-tool]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const tool = btn.dataset.tool;
+        if (tool === "learned" && kind === "theory") {
+          toggleLearned(id);
+          renderSidebar();
+          showTheoryDetail(id, currentDetailOpts);
+        } else if (tool === "favorite") {
+          toggleFavorite(kind, id);
+          if (kind === "theory") showTheoryDetail(id, currentDetailOpts);
+          else showPracticeDetail(id);
+        } else if (tool === "copy-link") {
+          copyText(itemUrl(kind, id));
+        } else if (tool === "copy-answer") {
+          const text =
+            kind === "theory"
+              ? qOrTask.answer
+              : [qOrTask.description, qOrTask.approach, qOrTask.code].filter(Boolean).join("\n\n");
+          copyText(text);
+        } else if (tool === "reveal") {
+          mockHidden = false;
+          detailView.querySelector(".detail-block.answer")?.classList.remove("answer-hidden");
+          btn.hidden = true;
+        }
+      });
+    });
   }
 
   function renderSources(sources) {
@@ -329,12 +572,20 @@
     });
   }
 
-  function showTheoryDetail(id) {
+  function showTheoryDetail(id, opts = {}) {
     const q = theory.questions.find((x) => x.id === id);
     if (!q) return;
     const idx = theory.questions.findIndex((x) => x.id === id);
     const prev = theory.questions[idx - 1];
     const next = theory.questions[idx + 1];
+    currentDetailOpts = opts;
+    mockHidden = !!opts.mock;
+    pushRecent("theory", id, q.title);
+    navContext = {
+      kind: "theory",
+      prevId: prev?.id ?? null,
+      nextId: next?.id ?? null,
+    };
 
     listView.hidden = true;
     hero.hidden = true;
@@ -342,7 +593,7 @@
     detailView.innerHTML = detailShell(
       "theory",
       q.id,
-      `Вопрос ${q.id}`,
+      opts.mock ? `Мок · вопрос ${q.id}` : `Вопрос ${q.id}`,
       q.blockTitle,
       q.title,
       [
@@ -350,9 +601,12 @@
         ["Источники", "sources", renderSources(q.sources)],
       ],
       prev ? { id: prev.id, title: prev.title, kind: "theory" } : null,
-      next ? { id: next.id, title: next.title, kind: "theory" } : null
+      next ? { id: next.id, title: next.title, kind: "theory" } : null,
+      { mock: opts.mock, toolbar: detailToolbar("theory", id, { mock: opts.mock }) }
     );
     bindDetailNav();
+    bindDetailToolbar("theory", id, q, opts);
+    renderSidebar();
     location.hash = `q-${id}`;
   }
 
@@ -397,6 +651,13 @@
       ]);
     }
 
+    pushRecent("practice", num, t.title);
+    navContext = {
+      kind: "practice",
+      prevId: prev?.num ?? null,
+      nextId: next?.num ?? null,
+    };
+
     listView.hidden = true;
     hero.hidden = true;
     detailView.hidden = false;
@@ -408,13 +669,15 @@
       t.title,
       sections,
       prev ? { id: prev.num, title: prev.title, kind: "practice" } : null,
-      next ? { id: next.num, title: next.title, kind: "practice" } : null
+      next ? { id: next.num, title: next.title, kind: "practice" } : null,
+      { toolbar: detailToolbar("practice", t.num) }
     );
     bindDetailNav();
+    bindDetailToolbar("practice", num, t);
     location.hash = `p-${num}`;
   }
 
-  function detailShell(kind, id, badge, block, title, sections, prev, next) {
+  function detailShell(kind, id, badge, block, title, sections, prev, next, extra = {}) {
     return `
       <button type="button" class="back-btn" id="back-btn">← К списку</button>
       <header class="detail-header">
@@ -424,10 +687,16 @@
         </div>
         <h2>${esc(title)}</h2>
       </header>
-      ${sections.map(([h, cls, body]) => `<section class="detail-block ${cls}"><h3>${h}</h3><div class="detail-body">${body}</div></section>`).join("")}
+      ${extra.toolbar || ""}
+      ${sections
+        .map(([h, cls, body]) => {
+          const hide = cls === "answer" && extra.mock && mockHidden;
+          return `<section class="detail-block ${cls}${hide ? " answer-hidden" : ""}"><h3>${h}</h3><div class="detail-body">${body}</div></section>`;
+        })
+        .join("")}
       <nav class="detail-nav">
-        <button type="button" class="nav-prev" ${prev ? "" : "disabled"}>${prev ? `← #${prev.id} ${esc(snippet(prev.title, 35))}` : "—"}</button>
-        <button type="button" class="nav-next" ${next ? "" : "disabled"}>${next ? `${esc(snippet(next.title, 35))} #${next.id} →` : "—"}</button>
+        <button type="button" class="nav-prev" data-nav-id="${prev?.id ?? ""}" ${prev ? "" : "disabled"}>${prev ? `← #${prev.id} ${esc(snippet(prev.title, 35))}` : "—"}</button>
+        <button type="button" class="nav-next" data-nav-id="${next?.id ?? ""}" ${next ? "" : "disabled"}>${next ? `${esc(snippet(next.title, 35))} #${next.id} →` : "—"}</button>
       </nav>`;
   }
 
@@ -443,17 +712,15 @@
     const next = detailView.querySelector(".nav-next");
     prev?.addEventListener("click", () => {
       if (prev.disabled) return;
-      const kind = section === "theory" || location.hash.startsWith("#q-") ? "theory" : "practice";
-      const m = prev.textContent.match(/#(\d+)/);
-      if (!m) return;
-      kind === "theory" ? showTheoryDetail(parseInt(m[1], 10)) : showPracticeDetail(parseInt(m[1], 10));
+      const nid = parseInt(prev.dataset.navId, 10);
+      if (!nid) return;
+      navContext.kind === "theory" ? showTheoryDetail(nid) : showPracticeDetail(nid);
     });
     next?.addEventListener("click", () => {
       if (next.disabled) return;
-      const kind = location.hash.startsWith("#q-") ? "theory" : "practice";
-      const m = next.textContent.match(/#(\d+)/);
-      if (!m) return;
-      kind === "theory" ? showTheoryDetail(parseInt(m[1], 10)) : showPracticeDetail(parseInt(m[1], 10));
+      const nid = parseInt(next.dataset.navId, 10);
+      if (!nid) return;
+      navContext.kind === "theory" ? showTheoryDetail(nid) : showPracticeDetail(nid);
     });
   }
 
@@ -525,8 +792,9 @@
 
   function runSearch(q) {
     const query = (q || "").trim();
+    updateSearchClear();
     if (!query) {
-      goHome();
+      clearSearch();
       return;
     }
     const tRes = fuseTheory.search(query).map((r) => r.item);
@@ -535,10 +803,14 @@
     detailView.hidden = true;
     listView.hidden = false;
     listView.innerHTML =
-      `<p class="list-header">Поиск: «${esc(query)}» — теория ${tRes.length}, практика ${pRes.length}</p>` +
-      (tRes.length ? `<h4 class="list-sub">Теория</h4>` + tRes.map((x) => cardTheory(x)).join("") : "") +
-      (pRes.length ? `<h4 class="list-sub">Практика</h4>` + pRes.map((x) => cardPractice(x)).join("") : "") +
+      `<div class="list-header-row">
+        <span class="list-header">Поиск: «${esc(query)}» — теория ${tRes.length}, практика ${pRes.length}</span>
+        <button type="button" class="chip-clear" id="list-search-clear">✕ Сбросить</button>
+      </div>` +
+      (tRes.length ? `<h4 class="list-sub">Теория</h4>` + tRes.map((x) => cardTheory(x, { highlight: query })).join("") : "") +
+      (pRes.length ? `<h4 class="list-sub">Практика</h4>` + pRes.map((x) => cardPractice(x, { highlight: query })).join("") : "") +
       (!tRes.length && !pRes.length ? `<p class="empty">Ничего не найдено</p>` : "");
+    $("#list-search-clear")?.addEventListener("click", clearSearch);
     bindListCards();
     location.hash = `search-${encodeURIComponent(q)}`;
   }
@@ -546,17 +818,46 @@
   let searchTimer;
   searchInput.addEventListener("input", () => {
     clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => runSearch(searchInput.value), 200);
+    const v = searchInput.value;
+    updateSearchClear();
+    searchTimer = setTimeout(() => {
+      if (v.trim()) runSearch(v);
+      else clearSearch();
+    }, 200);
   });
 
   document.addEventListener("keydown", (e) => {
+    const tag = document.activeElement?.tagName;
+    const typing = tag === "INPUT" || tag === "TEXTAREA";
+
     if (e.key === "/" && document.activeElement !== searchInput) {
       e.preventDefault();
       searchInput.focus();
     }
+    if (e.key === "?" && !typing) {
+      e.preventDefault();
+      shortcutsDialog?.showModal();
+    }
     if (e.key === "Escape") {
-      searchInput.value = "";
-      goHome();
+      if (searchInput.value.trim()) {
+        clearSearch();
+      } else {
+        goHome();
+      }
+    }
+    if (!typing && !detailView.hidden) {
+      if (e.key === "ArrowLeft" && navContext.prevId) {
+        e.preventDefault();
+        navContext.kind === "theory"
+          ? showTheoryDetail(navContext.prevId)
+          : showPracticeDetail(navContext.prevId);
+      }
+      if (e.key === "ArrowRight" && navContext.nextId) {
+        e.preventDefault();
+        navContext.kind === "theory"
+          ? showTheoryDetail(navContext.nextId)
+          : showPracticeDetail(navContext.nextId);
+      }
     }
   });
 
