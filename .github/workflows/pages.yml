@@ -1,4 +1,4 @@
-# Статический сайт без Jekyll (только папка docs/)
+# Статический сайт из корня репозитория (index.html, css/, js/, data/)
 name: Deploy Pages
 
 on:
@@ -23,9 +23,15 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - name: Собрать артефакт сайта
+        run: |
+          mkdir -p _site
+          cp index.html _site/
+          cp -r css js data _site/
+          cp .nojekyll _site/
       - uses: actions/configure-pages@v4
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: docs
+          path: _site
       - id: deployment
         uses: actions/deploy-pages@v4
