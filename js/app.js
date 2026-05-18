@@ -17,11 +17,12 @@
   const LS_LEARNED = "jm_learned";
   const LS_FAVORITE = "jm_favorite";
   const LS_RECENT = "jm_recent";
+  const LS_THEME = "pet_theme";
   const RECENT_MAX = 10;
 
   let theory = { questions: [], blocks: [] };
   let practice = { categories: [], tasks: [], methodology: {}, plan14: [] };
-  let section = "theory"; // theory | practice | plan
+  let section = "theory"; // theory | practice
   let fuseTheory = null;
   let fusePractice = null;
   let filterBlock = null;
@@ -194,6 +195,26 @@
     });
   }
 
+  function getTheme() {
+    return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+  }
+
+  function setTheme(theme) {
+    const t = theme === "dark" ? "dark" : "light";
+    document.documentElement.setAttribute("data-theme", t);
+    localStorage.setItem(LS_THEME, t);
+  }
+
+  function toggleTheme() {
+    setTheme(getTheme() === "dark" ? "light" : "dark");
+  }
+
+  function initTheme() {
+    const saved = localStorage.getItem(LS_THEME);
+    if (saved === "dark" || saved === "light") setTheme(saved);
+    $("#theme-toggle")?.addEventListener("click", toggleTheme);
+  }
+
   function showRandomMock() {
     const qs = theory.questions;
     if (!qs.length) return;
@@ -234,6 +255,7 @@
       ignoreLocation: true,
     });
 
+    initTheme();
     bindSectionTabs();
     bindGlobalUi();
     renderSidebar();
@@ -282,7 +304,7 @@
       const total = theory.questions.length;
       sidebarNav.innerHTML =
         `<p class="nav-progress">Выучено: ${learned}/${total}</p>` +
-        `<button type="button" class="nav-item nav-item-random" data-nav="random">🎲 Случайный вопрос</button>` +
+        `<button type="button" class="nav-item nav-item-random" data-nav="random">Случайный вопрос</button>` +
         renderRecentBlock() +
         `<p class="nav-label">Блоки теории · ${total} вопр.</p>` +
         navBtn("all", "Все вопросы", !filterBlock) +
@@ -299,11 +321,6 @@
         practice.categories
           .map((c) => navBtn(c.id, c.title, false, practiceBadge(c.id)))
           .join("");
-    } else {
-      sidebarNav.innerHTML =
-        `<p class="nav-label">Подготовка 14 дней</p>` +
-        navBtn("plan", "Календарь", true) +
-        navBtn("patterns", "Паттерны алгоритмов", false);
     }
     sidebarNav.querySelectorAll(".nav-item").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -348,10 +365,6 @@
         const cat = practice.categories.find((c) => c.id === nav);
         showPracticeList(cat ? cat.tasks : practice.tasks);
       }
-    } else {
-      setNavActive(nav);
-      if (nav === "patterns") showPatterns();
-      else showPlan();
     }
   }
 
@@ -365,28 +378,20 @@
     if (section === "theory") {
       hero.innerHTML = `
         <span class="hero-badge hero-badge-theory">Теория</span>
-        <h2>91 вопрос с ответами</h2>
-        <p>Java Core, Spring, SQL, Kafka — 91 вопрос по темам Middle. Развёрнутые ответы и ссылки на официальную документацию и спецификации.</p>
+        <h2>91 вопрос</h2>
+        <p>Java Core, Spring, SQL, Kafka — с ответами и ссылками на документацию.</p>
         <div class="hero-actions">
-          <button type="button" class="btn-primary" data-action="random-mock">🎲 Случайный вопрос</button>
+          <button type="button" class="btn-primary" data-action="random-mock">Случайный вопрос</button>
           <button type="button" class="btn-secondary" data-action="all-theory">Все вопросы</button>
-        </div>`;
-    } else if (section === "practice") {
-      hero.innerHTML = `
-        <span class="hero-badge hero-badge-practice">Практика</span>
-        <h2>32 задачи: LeetCode и собесы</h2>
-        <p>Алгоритмы, live-coding, Java-специфика и SQL. С эталонным кодом и ссылками на LeetCode.</p>
-        <div class="hero-actions">
-          <button type="button" class="btn-primary" data-action="method">Методология решения</button>
-          <button type="button" class="btn-secondary" data-action="all-practice">Все задачи</button>
         </div>`;
     } else {
       hero.innerHTML = `
-        <span class="hero-badge hero-badge-plan">План</span>
-        <h2>Интенсив 14 дней</h2>
-        <p>Чередуйте теорию (блоки 1–11) и практику по дням. День 14 — мок-собеседование.</p>
+        <span class="hero-badge hero-badge-practice">Практика</span>
+        <h2>32 задачи</h2>
+        <p>LeetCode, live-coding и Java-специфика с эталонным кодом.</p>
         <div class="hero-actions">
-          <button type="button" class="btn-primary" data-action="plan">Открыть календарь</button>
+          <button type="button" class="btn-primary" data-action="method">Методология</button>
+          <button type="button" class="btn-secondary" data-action="all-practice">Все задачи</button>
         </div>`;
     }
     hero.querySelectorAll("[data-action]").forEach((btn) => {
@@ -399,10 +404,6 @@
           onSidebarClick("method");
         }
         if (a === "all-practice") onSidebarClick("all");
-        if (a === "plan") {
-          setSection("plan");
-          onSidebarClick("plan");
-        }
       });
     });
   }
@@ -869,8 +870,8 @@
     } else if (h.startsWith("p-")) {
       setSection("practice");
       showPracticeDetail(parseInt(h.slice(2), 10));
-    } else if (h === "practice") setSection("practice");
-    else if (h === "plan") setSection("plan");
+    }     else if (h === "practice") setSection("practice");
+    else if (h === "plan") setSection("theory");
     else if (h.startsWith("search-")) {
       searchInput.value = decodeURIComponent(h.slice(7));
       runSearch(searchInput.value);

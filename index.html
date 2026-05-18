@@ -1,30 +1,39 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Java Middle — теория и практика</title>
-  <meta name="description" content="91 теоретических вопросов и 32 практические задачи для собеседования Java Middle." />
+  <title>Побег из Тавриды — подготовка к собеседованию</title>
+  <meta name="description" content="Теория и практика для Java Middle: вопросы, задачи, мок-собес." />
+  <script>
+    (function () {
+      var t = localStorage.getItem("pet_theme");
+      document.documentElement.setAttribute("data-theme", t === "dark" ? "dark" : "light");
+    })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
   <header class="header">
     <a href="#home" class="brand" id="brand-link">
-      <span class="brand-icon">J</span>
+      <span class="brand-mark" aria-hidden="true"></span>
       <div class="brand-text">
-        <h1>Java Middle</h1>
-        <p class="brand-sub">Теория · Практика · План 14 дней</p>
+        <h1>Побег из Тавриды</h1>
+        <p class="brand-sub">Теория · Практика</p>
       </div>
     </a>
     <div class="search-wrap">
-      <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-      <input type="search" id="search" placeholder="Поиск по теории и практике…" autocomplete="off" />
-      <button type="button" class="search-clear" id="search-clear" hidden aria-label="Сбросить поиск">✕</button>
-      <kbd class="search-hint">/</kbd>
+      <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input type="search" id="search" placeholder="Поиск…" autocomplete="off" />
+      <button type="button" class="search-clear" id="search-clear" hidden aria-label="Сбросить поиск">×</button>
     </div>
+    <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Сменить тему">
+      <span class="theme-icon theme-icon-light" aria-hidden="true">☀</span>
+      <span class="theme-icon theme-icon-dark" aria-hidden="true">☽</span>
+    </button>
   </header>
 
   <div class="layout">
@@ -32,7 +41,6 @@
       <nav class="section-tabs" id="section-tabs" aria-label="Разделы">
         <button type="button" class="section-tab active" data-section="theory">Теория</button>
         <button type="button" class="section-tab" data-section="practice">Практика</button>
-        <button type="button" class="section-tab" data-section="plan">План</button>
       </nav>
       <nav class="block-nav" id="sidebar-nav" aria-label="Навигация"></nav>
     </aside>
@@ -45,7 +53,7 @@
   </div>
 
   <footer class="footer">
-    <p>Java Middle · <a href="https://leetcode.com" target="_blank" rel="noopener">LeetCode</a> · <button type="button" class="footer-link" id="shortcuts-btn">Горячие клавиши (?)</button></p>
+    <a href="https://yaroshnikita.online/" target="_blank" rel="noopener noreferrer" class="footer-author">Никита Ярош</a>
   </footer>
 
   <div id="toast" class="toast" hidden aria-live="polite"></div>
@@ -53,10 +61,10 @@
     <form method="dialog">
       <h2>Горячие клавиши</h2>
       <dl class="shortcuts-list">
-        <dt><kbd>/</kbd></dt><dd>Фокус в поиск</dd>
-        <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Предыдущий / следующий вопрос</dd>
-        <dt><kbd>?</kbd></dt><dd>Эта подсказка</dd>
-        <dt><kbd>Esc</kbd></dt><dd>Сбросить поиск / на главную</dd>
+        <dt><kbd>/</kbd></dt><dd>Поиск</dd>
+        <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Предыдущий / следующий</dd>
+        <dt><kbd>?</kbd></dt><dd>Подсказка</dd>
+        <dt><kbd>Esc</kbd></dt><dd>Сброс</dd>
       </dl>
       <button type="submit" class="btn-primary">Закрыть</button>
     </form>
