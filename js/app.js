@@ -761,35 +761,6 @@
     );
   }
 
-  function showPlan() {
-    hero.hidden = true;
-    detailView.hidden = true;
-    listView.hidden = false;
-    let html = `<p class="list-header">План на 14 дней</p><div class="plan-grid">`;
-    practice.plan14.forEach((d) => {
-      const isTheory = d.day <= 11 && ![8, 9, 12, 13].includes(d.day);
-      const type = d.day >= 12 && d.day <= 13 ? "practice" : d.day === 14 ? "mock" : d.day <= 7 ? "mixed" : "theory";
-      html += `<div class="plan-day plan-${type}">
-        <span class="plan-num">День ${d.day}</span>
-        <p>${esc(d.tasks)}</p>
-        <div class="plan-links">
-          ${d.day <= 11 ? `<button type="button" class="plan-link" data-goto="theory">Теория</button>` : ""}
-          <button type="button" class="plan-link" data-goto="practice">Практика</button>
-        </div>
-      </div>`;
-    });
-    html += `</div>`;
-    if (practice.extras?.length) {
-      html += `<p class="list-header">Дополнительно</p>`;
-      practice.extras.forEach((e) => {
-        html += `<a class="card" href="${esc(e.url)}" target="_blank" rel="noopener"><h3>${esc(e.title)}</h3><p>${esc(e.note)}</p></a>`;
-      });
-    }
-    listView.innerHTML = html;
-    listView.querySelectorAll("[data-goto]").forEach((b) => {
-      b.addEventListener("click", () => setSection(b.dataset.goto));
-    });
-  }
 
   function runSearch(q) {
     const query = (q || "").trim();
